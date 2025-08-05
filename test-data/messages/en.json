@@ -1,0 +1,39 @@
+{
+  "HomePage": {
+    "title": "Hello world!",
+    "about": "Go to the about page",
+    "welcome": "Welcome to our app"
+  },
+  "About": {
+    "title": "About us",
+    "description": "Learn more about our company"
+  },
+  "Home": {
+    "welcome": "Welcome to our app",
+    "description": "This is a sample application"
+  },
+  "Common": {
+    "button": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "navigation": {
+      "home": "Home",
+      "about": "About",
+      "contact": "Contact"
+    }
+  },
+  "Errors": {
+    "notFound": "Page not found",
+    "serverError": "Server error occurred"
+  },
+  "Metadata": {
+    "title": "My App",
+    "description": "A sample Next.js app with internationalization"
+  },
+  "Layout": {
+    "language": "Language",
+    "switchLocale": "Switch language"
+  }
+}

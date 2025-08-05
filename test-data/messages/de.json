@@ -1,0 +1,39 @@
+{
+    "HomePage": {
+        "title": "Hallo Welt!",
+        "about": "Gehe zur Über uns Seite",
+        "welcome": "Willkommen in unserer App"
+    },
+    "About": {
+        "title": "Über uns",
+        "description": "Erfahre mehr über unser Unternehmen"
+    },
+    "Home": {
+        "welcome": "Willkommen in unserer App",
+        "description": "Dies ist eine Beispielanwendung"
+    },
+    "Common": {
+        "button": {
+            "save": "Speichern",
+            "cancel": "Abbrechen",
+            "delete": "Löschen"
+        },
+        "navigation": {
+            "home": "Startseite",
+            "about": "Über uns",
+            "contact": "Kontakt"
+        }
+    },
+    "Errors": {
+        "notFound": "Seite nicht gefunden",
+        "serverError": "Serverfehler aufgetreten"
+    },
+    "Metadata": {
+        "title": "Meine App",
+        "description": "Eine Beispiel Next.js App mit Internationalisierung"
+    },
+    "Layout": {
+        "language": "Sprache",
+        "switchLocale": "Sprache wechseln"
+    }
+}
