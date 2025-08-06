@@ -85,33 +85,76 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 	
 	currentNamespace := ""
 	
+	// Track variable assignments of translation functions
+	// Map of variable name -> namespace
+	translationVars := make(map[string]string)
+	
 	for lineNum, line := range lines {
 		lineNum++ // Convert to 1-based line numbers
 		
+		// Match direct useTranslations calls
 		useTranslationsMatch := regexp.MustCompile(`useTranslations\(['"]([^'"]+)['"]\)`).FindStringSubmatch(line)
 		if len(useTranslationsMatch) > 1 {
 			currentNamespace = useTranslationsMatch[1]
 			continue
 		}
 		
+		// Match direct getTranslations calls
 		getTranslationsMatch := regexp.MustCompile(`getTranslations\(['"]([^'"]+)['"]\)`).FindStringSubmatch(line)
 		if len(getTranslationsMatch) > 1 {
 			currentNamespace = getTranslationsMatch[1]
 			continue
 		}
 		
-		tCalls := regexp.MustCompile(`t\(['"]([^'"]+)['"]`).FindAllStringSubmatch(line, -1)
-		for _, match := range tCalls {
-			if len(match) > 1 {
-				key := match[1]
+		// Match variable assignments for translation functions
+		// Example: const adminT = getTranslations("Admin")
+		// Example: const t = useTranslations("Common")
+		varAssignmentPattern := regexp.MustCompile(`(?:const|let|var)\s+(\w+)\s*=\s*(?:useTranslations|getTranslations)\(['"]([^'"]+)['"]\)`)
+		varMatch := varAssignmentPattern.FindStringSubmatch(line)
+		if len(varMatch) > 2 {
+			varName := varMatch[1]
+			namespace := varMatch[2]
+			translationVars[varName] = namespace
+			continue
+		}
+		
+		// Match destructured assignments
+		// Example: const { t } = useTranslations("Common")
+		destructuredPattern := regexp.MustCompile(`(?:const|let|var)\s+\{\s*(\w+)[^\}]*\}\s*=\s*(?:useTranslations|getTranslations)\(['"]([^'"]+)['"]\)`)
+		destructuredMatch := destructuredPattern.FindStringSubmatch(line)
+		if len(destructuredMatch) > 2 {
+			varName := destructuredMatch[1]
+			namespace := destructuredMatch[2]
+			translationVars[varName] = namespace
+			continue
+		}
+		
+		// Process generic translation calls (standard pattern: t("key"))
+		genericCallsPattern := regexp.MustCompile(`(\w+)\s*\(['"]([^'"]+)['"]\)`)
+		genericCalls := genericCallsPattern.FindAllStringSubmatch(line, -1)
+		for _, match := range genericCalls {
+			if len(match) > 2 {
+				varName := match[1]
+				key := match[2]
 				
 				if key == "" {
 					continue
 				}
 				
+				// Check if this is a call to a known translation variable
+				namespace := ""
+				if varName == "t" {
+					namespace = currentNamespace
+				} else if ns, exists := translationVars[varName]; exists {
+					namespace = ns
+				} else {
+					// Skip if not a translation function call
+					continue
+				}
+				
 				fullKey := key
-				if currentNamespace != "" {
-					fullKey = currentNamespace + "." + key
+				if namespace != "" && !strings.Contains(key, ".") {
+					fullKey = namespace + "." + key
 				}
 				
 				used[fullKey] = Translation{
@@ -125,49 +168,58 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 			}
 		}
 		
-		otherPatterns := []struct {
-			name string
-			regex *regexp.Regexp
-		}{
-			{"t.rich()", regexp.MustCompile(`t\.rich\(['"]([^'"]+)['"]`)},
-			{"t.markup()", regexp.MustCompile(`t\.markup\(['"]([^'"]+)['"]`)},
-			{"t.raw()", regexp.MustCompile(`t\.raw\(['"]([^'"]+)['"]`)},
-			{"t.has()", regexp.MustCompile(`t\.has\(['"]([^'"]+)['"]`)},
-		}
-		
-		for _, pattern := range otherPatterns {
-			matches := pattern.regex.FindAllStringSubmatch(line, -1)
-			for _, match := range matches {
-				if len(match) > 1 {
-					key := match[1]
-								if key != "" {
+		// Process extended translation API calls (t.rich(), t.markup(), etc.)
+		// This now handles both standard t and variable-based translation functions
+		extendedApiPattern := regexp.MustCompile(`(\w+)\.(?:rich|markup|raw|has)\s*\(['"]([^'"]+)['"]\)`)
+		extendedCalls := extendedApiPattern.FindAllStringSubmatch(line, -1)
+		for _, match := range extendedCalls {
+			if len(match) > 2 {
+				varName := match[1]
+				key := match[2]
+				
+				if key == "" {
+					continue
+				}
+				
+				// Check if this is a call to a known translation variable
+				namespace := ""
+				if varName == "t" {
+					namespace = currentNamespace
+				} else if ns, exists := translationVars[varName]; exists {
+					namespace = ns
+				} else {
+					// Skip if not a translation function call
+					continue
+				}
+				
 				fullKey := key
-				if currentNamespace != "" {
-					fullKey = currentNamespace + "." + key
+				if namespace != "" && !strings.Contains(key, ".") {
+					fullKey = namespace + "." + key
 				}
 				
 				used[fullKey] = Translation{
-							Key:      fullKey,
-							File:     filePath,
-							Line:     lineNum,
-							Used:     true,
-							Declared: false,
-							Type:     "translation_call",
-						}
-					}
+					Key:      fullKey,
+					File:     filePath,
+					Line:     lineNum,
+					Used:     true,
+					Declared: false,
+					Type:     "translation_call",
 				}
 			}
 		}
 		
 		hardcodedPatterns := []*regexp.Regexp{
-			// Text between JSX tags like <h1>text</h1> (but not translation calls)
-			regexp.MustCompile(`<[^>]+>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)</[^>]+>`),
-			// Text in JSX expressions like {text} (but not translation calls)
-			regexp.MustCompile(`\{([^}]*[a-zA-Z][^}]*)\}`),
-			// Text in JSX attributes like title="text" (but not href, src, etc.)
-			regexp.MustCompile(`["']([^"']*[a-zA-Z][^"']*)["']`),
-			// Text after JSX tags like <button>text
-			regexp.MustCompile(`>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)<`),
+			// Text between JSX tags that's likely user-facing (between opening/closing tags)
+			// Example: <h1>Welcome to our site</h1>
+			regexp.MustCompile(`<(?:h[1-6]|p|li|span|div|button|a|label|td|th)\b[^>]*>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)</(?:h[1-6]|p|li|span|div|button|a|label|td|th)>`),
+			
+			// Text in specific JSX attributes that are likely to contain user-facing content
+			// Example: title="Click here to continue"
+			regexp.MustCompile(`(?:title|alt|placeholder|aria-label|description)=["']([^"'<>]{3,}[a-zA-Z][^"'<>]*)["']`),
+			
+			// Text between closing tag and opening tag that's not just whitespace
+			// Example: </Button>Click me<Button>
+			regexp.MustCompile(`>([^<>{}\n]{3,}[a-zA-Z][^<>{}\n]{3,})<`),
 		}
 		
 		for _, pattern := range hardcodedPatterns {
@@ -196,27 +248,43 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 						continue
 					}
 					
-					// Skip imports and function names (including destructured imports)
-					if strings.Contains(text, "import") || strings.Contains(text, "export") || 
-					   strings.Contains(text, "function") || strings.Contains(text, "const") {
-						continue
-					}
-					
-					// Skip any destructured import pattern (e.g. { useState, useEffect, useTranslations })
-					if strings.HasPrefix(strings.TrimSpace(text), "{") && strings.HasSuffix(strings.TrimSpace(text), "}") {
-						continue
-					}
-					
-					// Skip any identifier that looks like a React hook or translation function
-					if strings.HasPrefix(text, "use") || strings.HasPrefix(text, "get") {
-						continue
-					}
-					
-					// Skip URLs and paths
-					if strings.HasPrefix(text, "/") || strings.Contains(text, "http") || 
-					   strings.Contains(text, "www.") || strings.Contains(text, ".com") {
-						continue
-					}
+									// Skip imports and function names (including destructured imports)
+				if strings.Contains(text, "import") || strings.Contains(text, "export") || 
+				   strings.Contains(text, "function") || strings.Contains(text, "const") {
+					continue
+				}
+				
+				// Skip any destructured import pattern (e.g. { useState, useEffect, useTranslations })
+				if strings.HasPrefix(strings.TrimSpace(text), "{") && strings.HasSuffix(strings.TrimSpace(text), "}") {
+					continue
+				}
+				
+				// Skip any identifier that looks like a React hook or translation function
+				if strings.HasPrefix(text, "use") || strings.HasPrefix(text, "get") {
+					continue
+				}
+				
+				// Skip URLs and paths
+				if strings.HasPrefix(text, "/") || strings.Contains(text, "http") || 
+				   strings.Contains(text, "www.") || strings.Contains(text, ".com") {
+					continue
+				}
+				
+				// Skip single words that are likely variable names
+				if !strings.Contains(text, " ") && len(text) < 15 {
+					continue
+				}
+				
+				// Skip words that are common in code but not necessarily user-facing
+				if text == "name" || text == "value" || text == "data" || text == "type" || 
+				   text == "label" || text == "content" || text == "format" || text == "default" {
+					continue
+				}
+				
+				// Skip strings that look like component props or configurations
+				if strings.Count(text, "=") > 1 || strings.Count(text, ":") > 1 {
+					continue
+				}
 					
 					// Skip technical patterns using the constants.go definitions
 					isTechnical := false
@@ -296,7 +364,7 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 }
 
 func (p *TranslationParser) isUserFacingText(text string) bool {
-	// Handle very short but common UI strings
+	// Handle very short but common UI strings from our predefined list
 	if len(text) >= 2 && len(text) <= 4 {
 		for _, word := range ShortUIWords {
 			if strings.EqualFold(text, word) {
@@ -307,6 +375,18 @@ func (p *TranslationParser) isUserFacingText(text string) bool {
 
 	// Minimum length check
 	if len(text) < MinTextLength {
+		return false
+	}
+	
+	// Skip strings that look like code
+	if strings.ContainsAny(text, "{}[]()<>=+*/") {
+		return false
+	}
+	
+	// Skip camelCase or snake_case identifiers which are likely code
+	if !strings.Contains(text, " ") && 
+	   (strings.ContainsRune(text, '_') || 
+		(strings.ToLower(text) != text && text[0] != strings.ToUpper(text)[0])) {
 		return false
 	}
 
@@ -324,38 +404,54 @@ func (p *TranslationParser) isUserFacingText(text string) bool {
 		}
 	}
 
-	// Check for sentence-like patterns (starts with capital, ends with punctuation)
-	if len(text) > 3 {
-		firstChar := text[0]
-		lastChar := text[len(text)-1]
-		if (firstChar >= 'A' && firstChar <= 'Z') && 
-		   (lastChar == '.' || lastChar == '!' || lastChar == '?') {
-			return true
+	// Count words - strings with multiple words are more likely to be user-facing
+	words := strings.Fields(text)
+	if len(words) >= MinWordsForSentence {
+		// Check if it's a proper sentence (starts with capital, ends with punctuation)
+		if len(text) > 3 {
+			firstChar := text[0]
+			lastChar := text[len(text)-1]
+			if (firstChar >= 'A' && firstChar <= 'Z') && 
+			   (lastChar == '.' || lastChar == '!' || lastChar == '?') {
+				return true
+			}
 		}
+		
+		// Even without proper sentence structure, multi-word phrases are often translatable
+		return true
 	}
 
-	// Enhanced alphabetic ratio check with better thresholds
+	// Enhanced alphabetic ratio check with adjusted thresholds
 	alphaCount := 0
 	spaceCount := 0
+	punctCount := 0
+	
 	for _, char := range text {
 		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') {
 			alphaCount++
 		} else if char == ' ' {
 			spaceCount++
+		} else if strings.ContainsRune(".,!?:;-—–…", char) {
+			punctCount++
 		}
 	}
-
+	
+	// Skip if mostly non-alphabetic (excluding spaces and common punctuation)
+	nonAlphaCount := len(text) - alphaCount - spaceCount - punctCount
+	
 	// For longer text, require more alphabetic characters
 	if len(text) > LongTextThreshold {
-		return alphaCount >= int(float64(len(text))*LongTextRatio)
+		return alphaCount >= int(float64(len(text))*LongTextRatio) && 
+		       len(words) >= MinWordsForSentence
 	}
 	
-	// For medium text, standard ratio
+	// For medium text, be more strict
 	if len(text) > MediumTextThreshold {
-		return alphaCount >= int(float64(len(text))*MediumTextRatio)
+		return alphaCount >= int(float64(len(text))*MediumTextRatio) &&
+			   nonAlphaCount < len(text)/3
 	}
 	
-	// For short text, be more lenient but still require majority alphabetic
+	// For short text, be very strict to avoid false positives
 	return alphaCount >= int(float64(len(text))*ShortTextRatio)
 }
 

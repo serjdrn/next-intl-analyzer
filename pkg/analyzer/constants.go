@@ -25,6 +25,8 @@ var TechnicalPatterns = []string{
 	// Common variable names and technical terms
 	"props", "state", "ref", "key", "index", "item", "element", "component",
 	"handler", "callback", "event", "e.target", "e.preventDefault",
+	"children", "className=", "style=", "id=", "name=", "onClick=",
+	"onChange=", "onSubmit=", "width=", "height=", "size=", "color=",
 	
 	// File extensions and paths
 	".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".json", ".md",
@@ -33,6 +35,14 @@ var TechnicalPatterns = []string{
 	// Code patterns
 	"console.log", "debugger", "throw", "catch", "finally", "try",
 	"new ", "instanceof", "typeof", "delete", "in", "of",
+	">", "</", "<", "/>", "={", "{}", "()", "[]",
+	
+	// JavaScript keywords
+	"await", "async", "class", "super", "this", "prototype", "constructor",
+	"extends", "implements", "interface", "enum", "public", "private", "protected",
+	
+	// Common code tokens
+	"=>{", "()=>", "=>(", "=>{}", "...props", "...rest", "className={`", "className={",
 }
 
 // UI/UX patterns that indicate user-facing content (should be translated)
@@ -45,6 +55,10 @@ var UIPatterns = []string{
 	"Profile", "Settings", "Preferences", "Account", "Dashboard",
 	"Home", "About", "Contact", "Help", "Support", "FAQ",
 	"Terms", "Privacy", "Policy", "License", "Copyright",
+	"Created by", "Developed by", "Powered by", "Made with", "© ", "Copyright",
+	"All rights reserved", "Submit", "Save", "Cancel", "Delete", "Edit", "Remove",
+	"Create", "Update", "Read more", "Learn more", "View details", "Continue",
+	"Previous", "Next", "Back to", "Return to", "Go to", "Navigate to",
 }
 
 // Common punctuation marks that might appear in user-facing text
@@ -53,13 +67,14 @@ var CommonPunctuation = []string{
 }
 
 // Minimum length for text to be considered for translation
-const MinTextLength = 2
+const MinTextLength = 3
 
 // Alphabetic ratio thresholds for different text lengths
 const (
 	LongTextThreshold   = 10  // Characters
 	MediumTextThreshold = 5   // Characters
-	LongTextRatio       = 0.75 // 75% alphabetic
-	MediumTextRatio     = 0.5  // 50% alphabetic
-	ShortTextRatio      = 0.67 // 67% alphabetic
+	LongTextRatio       = 0.6  // 60% alphabetic (lowered to reduce false positives)
+	MediumTextRatio     = 0.6  // 60% alphabetic (increased to be more strict)
+	ShortTextRatio      = 0.75 // 75% alphabetic (increased to be more strict)
+	MinWordsForSentence = 3    // Minimum words for a phrase to be considered a sentence
 ) 

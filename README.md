@@ -127,13 +127,10 @@ See [sample-report.md](sample-report.md) for an example of the generated report 
 
 The CLI tool performs the following analysis:
 
-1. **Scans translation files**: Looks for translation files in common locations:
-   - `messages/*.json`
-   - `locales/*.json`
-   - `i18n/*.json`
-   - Any `.json`, `.yaml`, or `.yml` files in translation directories
+1. **Scans translation files**: Looks strictly for translation files in:
+   - `messages/*.json` (the only source of locales)
 
-2. **Scans source files**: Analyzes JavaScript/TypeScript files for translation usage:
+2. **Scans source files**: Analyzes JSX and TSX files for translation usage:
    - **Client-side patterns**: `useTranslations('namespace')` and `t('key')` calls
    - **Server-side patterns**: `getTranslations('namespace')` calls
    - **Advanced patterns**: `t.rich()`, `t.markup()`, `t.raw()`, `t.has()` calls
@@ -195,6 +192,49 @@ The tool provides a comprehensive report including:
    - About Us (used in src/components/UntranslatedComponent.tsx:20)
 ```
 
+## Terminology
+
+### Unused Translations
+
+A translation is considered **unused** when:
+- It exists in your translation files (e.g., `messages/en.json`)
+- But it is not referenced anywhere in your JSX/TSX files through:
+  - Direct calls: `t('key')`
+  - Extended API calls: `t.rich()`, `t.markup()`, etc.
+  - Dot notation: `t('namespace.key')`
+
+Parent namespace keys are automatically considered "used" if any of their children are used. For example, if you have:
+```json
+{
+  "Common": {
+    "button": {
+      "save": "Save",
+      "cancel": "Cancel"
+    }
+  }
+}
+```
+And you use `t('Common.button.save')` in your code, both `Common` and `Common.button` are considered used.
+
+### Undeclared Translations
+
+A translation is considered **undeclared** when:
+- It is referenced in your JSX/TSX files (e.g., `t('key')`)
+- But it does not exist in your translation files for a specific locale
+
+These are potential bugs where your code is trying to use translations that don't exist.
+
+### Hardcoded Strings
+
+Hardcoded strings are:
+- User-facing text embedded directly in your JSX/TSX files
+- Text that should likely be translated but isn't using the translation system
+- Usually found in:
+  - JSX content: `<h1>Welcome to our site</h1>`
+  - Props like `title`, `placeholder`, etc.: `<input placeholder="Enter your name" />`
+
+The analyzer uses various heuristics to detect text that looks like user-facing content rather than technical code.
+
 ## Exit codes
 
 - `0`: Analysis completed successfully with no issues found
@@ -204,12 +244,11 @@ The tool provides a comprehensive report including:
 ## Supported file types
 
 ### Translation files
-- `.json` files in translation directories (`messages/`, `locales/`, `i18n/`)
-- `.yaml` and `.yml` files in translation directories
+- `.json` files in `messages/` directory only
 
 ### Source files
-- `.js` and `.jsx` files
-- `.ts` and `.tsx` files
+- `.jsx` files
+- `.tsx` files
 - Excludes `node_modules` and `.next` directories
 
 ## Supported translation patterns
@@ -220,6 +259,15 @@ The tool provides a comprehensive report including:
 const t = useTranslations('HomePage');
 t('title')                    // Detected as HomePage.title
 t('welcome')                  // Detected as HomePage.welcome
+
+// Variable-assigned translation functions
+const adminT = useTranslations('Admin');
+adminT('created')             // Detected as Admin.created
+adminT('modified')            // Detected as Admin.modified
+
+// Destructuring pattern
+const { t: pageT } = useTranslations('PageContent');
+pageT('heading')              // Detected as PageContent.heading
 
 // Advanced usage
 t.rich('message', {...})      // Rich text formatting
@@ -234,6 +282,10 @@ t.has('key')                  // Optional message checks
 const t = await getTranslations('About');
 t('title')                    // Detected as About.title
 t('description')              // Detected as About.description
+
+// Variable-assigned with namespace
+const adminT = await getTranslations('Admin');
+adminT('users')               // Detected as Admin.users
 ```
 
 ### Nested key patterns
@@ -241,6 +293,10 @@ t('description')              // Detected as About.description
 // Dot notation (fully qualified keys)
 t('Common.button.save')       // Detected as Common.button.save
 t('About.title')              // Detected as About.title
+
+// Mixed usage with variables
+const adminT = useTranslations('Admin');
+adminT('Subscriptions.title') // Detected as Admin.Subscriptions.title
 ```
 
 ## Development

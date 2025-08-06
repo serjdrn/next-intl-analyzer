@@ -152,12 +152,19 @@ func (a *Analyzer) findTranslationFiles() ([]string, error) {
 			return err
 		}
 		
+		// Skip node_modules directory
+		if info.IsDir() && info.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
+		
+		// Only consider files in the messages directory with .json extension
 		if !info.IsDir() {
 			ext := filepath.Ext(path)
-			if ext == ".json" || ext == ".yaml" || ext == ".yml" {
-				if strings.Contains(path, "messages") || strings.Contains(path, "locales") || strings.Contains(path, "i18n") {
-					files = append(files, path)
-				}
+			dir := filepath.Dir(path)
+			dirName := filepath.Base(dir)
+			
+			if ext == ".json" && dirName == "messages" {
+				files = append(files, path)
 			}
 		}
 		return nil
@@ -174,12 +181,16 @@ func (a *Analyzer) findSourceFiles() ([]string, error) {
 			return err
 		}
 		
+		// Skip node_modules and .next directories
+		if info.IsDir() && (info.Name() == "node_modules" || info.Name() == ".next") {
+			return filepath.SkipDir
+		}
+		
 		if !info.IsDir() {
 			ext := filepath.Ext(path)
-			if ext == ".js" || ext == ".jsx" || ext == ".ts" || ext == ".tsx" {
-				if !strings.Contains(path, "node_modules") && !strings.Contains(path, ".next") {
-					files = append(files, path)
-				}
+			// Only include JSX and TSX files
+			if ext == ".jsx" || ext == ".tsx" {
+				files = append(files, path)
 			}
 		}
 		return nil
@@ -247,17 +258,14 @@ func (a *Analyzer) groupTranslationFilesByLocale(files []string) map[string][]st
 func (a *Analyzer) extractLocaleFromPath(filePath string) string {
 	fileName := filepath.Base(filePath)
 	ext := filepath.Ext(fileName)
-	if ext == ".json" || ext == ".yaml" || ext == ".yml" {
-		locale := strings.TrimSuffix(fileName, ext)
-		if len(locale) >= 2 && len(locale) <= 3 {
+	// Only extract locale from JSON files in messages directory
+	if ext == ".json" {
+		dir := filepath.Dir(filePath)
+		dirName := filepath.Base(dir)
+		if dirName == "messages" {
+			locale := strings.TrimSuffix(fileName, ext)
 			return locale
 		}
-	}
-	
-	dir := filepath.Dir(filePath)
-	dirName := filepath.Base(dir)
-	if len(dirName) >= 2 && len(dirName) <= 3 {
-		return dirName
 	}
 	
 	return ""
@@ -280,9 +288,29 @@ func (a *Analyzer) analyzeLocale(locale string, files []string, usedTranslations
 		UndeclaredTranslations: make([]Translation, 0),
 		HardcodedStrings:      make([]Translation, 0), // This will remain empty as we'll handle hardcoded strings globally
 	}
+	
+	// Build a map of parent keys that have used child keys
+	usedParentKeys := make(map[string]bool)
+	for key := range usedTranslations {
+		// For each used key, mark all parent namespaces as "used"
+		parts := strings.Split(key, ".")
+		for i := 1; i < len(parts); i++ {
+			parentKey := strings.Join(parts[:i], ".")
+			usedParentKeys[parentKey] = true
+		}
+	}
 
 	for key, translation := range declaredTranslations {
-		if _, exists := usedTranslations[key]; !exists {
+		// Check if the key is directly used or if it's a parent namespace of a used key
+		isUsed := false
+		if _, exists := usedTranslations[key]; exists {
+			isUsed = true
+		} else if usedParentKeys[key] {
+			// This is a parent namespace of a used key
+			isUsed = true
+		}
+		
+		if !isUsed {
 			localeResult.UnusedTranslations = append(localeResult.UnusedTranslations, translation)
 		}
 	}

@@ -18,8 +18,8 @@ var AnalyzeCmd = &cobra.Command{
 	Long: `Analyze a Next.js project to find unused and undeclared translations.
 	
 This command will:
-- Scan for translation files (messages/*.json, locales/*.json, etc.)
-- Scan source files for translation usage
+- Scan for translation files strictly from messages/*.json
+- Scan source files (.jsx and .tsx only) for translation usage
 - Report unused translations (declared but not used)
 - Report undeclared translations (used but not declared)`,
 	Args: cobra.ExactArgs(1),
