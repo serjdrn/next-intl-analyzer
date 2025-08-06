@@ -1,5 +1,7 @@
 # Next-intl Analyzer
 
+> **BETA STATUS**: This tool is currently in beta. We welcome contributions and feedback to help improve it!
+
 A command-line tool to analyze next-intl translations in Next.js projects. This tool helps you find unused and undeclared translations to keep your internationalization files clean and maintainable.
 
 > **Disclaimer**: This tool is **not** officially affiliated with or endorsed by the `next-intl` team. It is an independent analysis tool designed to help developers working with the `next-intl` library. See [DISCLAIMER.md](DISCLAIMER.md) for more details.
@@ -112,6 +114,50 @@ go run main.go analyze /path/to/your/project --report
 # Generate a report with custom filename
 go run main.go analyze /path/to/your/project --report --report-file my-report.md
 ```
+
+### Integration with GitHub Actions
+
+You can automate translation checking in your CI/CD pipeline using GitHub Actions. Here's an example workflow file (`.github/workflows/translation-checks.yml`):
+
+```yaml
+name: Next-intl Translation Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-translations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          
+      - name: Install next-intl-analyzer
+        run: |
+          git clone https://github.com/serjdrn/next-intl-analyzer.git
+          cd next-intl-analyzer
+          go build -o next-intl-analyzer
+          sudo mv next-intl-analyzer /usr/local/bin/
+          
+      - name: Run translation analysis
+        run: |
+          next-intl-analyzer analyze . --report
+          
+      - name: Upload translation report
+        uses: actions/upload-artifact@v3
+        with:
+          name: translation-report
+          path: reports/translations-report.md
+```
+
+This workflow runs on push and pull requests, checks your translations, and uploads the report as an artifact.
 
 The report includes:
 - 📊 **Summary statistics** with counts of total, used, unused, undeclared translations, and hardcoded strings
@@ -339,11 +385,21 @@ go run main.go analyze test-data
 
 ## Contributing
 
+As this tool is in beta, we actively welcome and encourage contributions! Whether it's bug fixes, feature enhancements, or documentation improvements, your help is greatly appreciated.
+
+To contribute:
+
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
+
+Some areas where contributions would be particularly valuable:
+- Support for more translation patterns and edge cases
+- Performance optimizations for large codebases
+- Extended testing with different Next.js project structures
+- Improved hardcoded string detection heuristics
 
 ## Related
 
