@@ -158,8 +158,14 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 		}
 		
 		hardcodedPatterns := []*regexp.Regexp{
+			// Text between JSX tags like <h1>text</h1>
 			regexp.MustCompile(`<[^>]+>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)</[^>]+>`),
+			// Text in JSX expressions like {text}
 			regexp.MustCompile(`\{([^}]*[a-zA-Z][^}]*)\}`),
+			// Text in JSX attributes like title="text"
+			regexp.MustCompile(`["']([^"']*[a-zA-Z][^"']*)["']`),
+			// Text after JSX tags like <button>text
+			regexp.MustCompile(`>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)<`),
 		}
 		
 		for _, pattern := range hardcodedPatterns {
@@ -168,16 +174,38 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 				if len(match) > 1 {
 					text := strings.TrimSpace(match[1])
 					
+					// Skip if it's already a translation call or contains JSX
 					if strings.Contains(text, "t(") || strings.Contains(text, "<") || strings.Contains(text, ">") {
 						continue
 					}
 					
-					if len(text) < 3 || strings.TrimSpace(text) == "" {
+					// Skip if it's just whitespace or very short
+					if len(text) < MinTextLength || strings.TrimSpace(text) == "" {
 						continue
 					}
 					
+					// Skip if it's a variable or expression
 					if strings.Contains(text, "=") || strings.Contains(text, "+") || strings.Contains(text, "-") {
 						continue
+					}
+					
+					// Skip if it's a number or mostly numeric
+					if p.isNumeric(text) {
+						continue
+					}
+					
+					// Skip if it's a single character (except common punctuation)
+					if len(text) == 1 {
+						isPunctuation := false
+						for _, punct := range CommonPunctuation {
+							if text == punct {
+								isPunctuation = true
+								break
+							}
+						}
+						if !isPunctuation {
+							continue
+						}
 					}
 					
 					if p.isUserFacingText(text) {
@@ -202,33 +230,78 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 }
 
 func (p *TranslationParser) isUserFacingText(text string) bool {
-	if len(text) < 3 {
+	// Handle very short but common UI strings
+	if len(text) >= 2 && len(text) <= 4 {
+		for _, word := range ShortUIWords {
+			if strings.EqualFold(text, word) {
+				return true
+			}
+		}
+	}
+
+	// Minimum length check
+	if len(text) < MinTextLength {
 		return false
 	}
-	
-	technicalPatterns := []string{
-		"className", "id=", "href=", "src=", "alt=", "title=",
-		"onClick", "onChange", "onSubmit", "onLoad",
-		"useState", "useEffect", "useCallback", "useMemo",
-		"import", "export", "const", "let", "var", "function",
-		"return", "if", "else", "for", "while", "switch",
-		"true", "false", "null", "undefined",
-	}
-	
-	for _, pattern := range technicalPatterns {
+
+	// Check for technical patterns
+	for _, pattern := range TechnicalPatterns {
 		if strings.Contains(text, pattern) {
 			return false
 		}
 	}
-	
+
+	// Check for common UI/UX patterns that indicate user-facing content
+	for _, pattern := range UIPatterns {
+		if strings.Contains(text, pattern) {
+			return true
+		}
+	}
+
+	// Check for sentence-like patterns (starts with capital, ends with punctuation)
+	if len(text) > 3 {
+		firstChar := text[0]
+		lastChar := text[len(text)-1]
+		if (firstChar >= 'A' && firstChar <= 'Z') && 
+		   (lastChar == '.' || lastChar == '!' || lastChar == '?') {
+			return true
+		}
+	}
+
+	// Enhanced alphabetic ratio check with better thresholds
 	alphaCount := 0
+	spaceCount := 0
 	for _, char := range text {
 		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') {
 			alphaCount++
+		} else if char == ' ' {
+			spaceCount++
 		}
 	}
+
+	// For longer text, require more alphabetic characters
+	if len(text) > LongTextThreshold {
+		return alphaCount >= int(float64(len(text))*LongTextRatio)
+	}
 	
-	return alphaCount >= len(text)/2
+	// For medium text, standard ratio
+	if len(text) > MediumTextThreshold {
+		return alphaCount >= int(float64(len(text))*MediumTextRatio)
+	}
+	
+	// For short text, be more lenient but still require majority alphabetic
+	return alphaCount >= int(float64(len(text))*ShortTextRatio)
+}
+
+// isNumeric checks if a string is mostly numeric
+func (p *TranslationParser) isNumeric(text string) bool {
+	digitCount := 0
+	for _, char := range text {
+		if char >= '0' && char <= '9' {
+			digitCount++
+		}
+	}
+	return digitCount >= len(text)/2
 }
 
 func (p *TranslationParser) MergeTranslationMaps(maps ...map[string]Translation) map[string]Translation {
