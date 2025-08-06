@@ -21,7 +21,6 @@ Examples:
 }
 
 func main() {
-	// Add commands
 	rootCmd.AddCommand(cmd.AnalyzeCmd)
 	
 	if err := rootCmd.Execute(); err != nil {

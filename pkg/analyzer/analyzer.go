@@ -14,7 +14,7 @@ type Translation struct {
 	Line     int
 	Used     bool
 	Declared bool
-	Locale   string // Add locale field
+	Locale   string
 }
 
 // AnalysisResult contains the results of the translation analysis
@@ -23,7 +23,7 @@ type AnalysisResult struct {
 	UndeclaredTranslations []Translation
 	TotalTranslations     int
 	UsedTranslations      int
-	LocaleResults         map[string]*LocaleAnalysisResult // Add per-locale results
+	LocaleResults         map[string]*LocaleAnalysisResult
 }
 
 // LocaleAnalysisResult contains analysis results for a specific locale
@@ -41,7 +41,6 @@ type Analyzer struct {
 	results     *AnalysisResult
 }
 
-// NewAnalyzer creates a new analyzer instance
 func NewAnalyzer(projectPath string) *Analyzer {
 	return &Analyzer{
 		projectPath: projectPath,
@@ -53,34 +52,28 @@ func NewAnalyzer(projectPath string) *Analyzer {
 	}
 }
 
-// Analyze performs the translation analysis
 func (a *Analyzer) Analyze() (*AnalysisResult, error) {
 	if err := a.validateProjectPath(); err != nil {
 		return nil, fmt.Errorf("invalid project path: %w", err)
 	}
 
-	// Find all translation files
 	translationFiles, err := a.findTranslationFiles()
 	if err != nil {
 		return nil, fmt.Errorf("error finding translation files: %w", err)
 	}
 
-	// Find all source files that might use translations
 	sourceFiles, err := a.findSourceFiles()
 	if err != nil {
 		return nil, fmt.Errorf("error finding source files: %w", err)
 	}
 
-	// Group translation files by locale
 	localeFiles := a.groupTranslationFilesByLocale(translationFiles)
 
-	// Analyze used translations (same across all locales)
 	usedTranslations, err := a.analyzeUsedTranslations(sourceFiles)
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing used translations: %w", err)
 	}
 
-	// Analyze each locale separately
 	for locale, files := range localeFiles {
 		localeResult, err := a.analyzeLocale(locale, files, usedTranslations)
 		if err != nil {
@@ -90,13 +83,11 @@ func (a *Analyzer) Analyze() (*AnalysisResult, error) {
 		a.results.LocaleResults[locale] = localeResult
 	}
 
-	// Generate overall results
 	a.generateOverallResults()
 
 	return a.results, nil
 }
 
-// validateProjectPath checks if the project path exists and is a directory
 func (a *Analyzer) validateProjectPath() error {
 	info, err := os.Stat(a.projectPath)
 	if err != nil {
@@ -108,7 +99,6 @@ func (a *Analyzer) validateProjectPath() error {
 	return nil
 }
 
-// findTranslationFiles finds all translation files in the project
 func (a *Analyzer) findTranslationFiles() ([]string, error) {
 	var files []string
 	
@@ -118,10 +108,8 @@ func (a *Analyzer) findTranslationFiles() ([]string, error) {
 		}
 		
 		if !info.IsDir() {
-			// Look for common translation file patterns
 			ext := filepath.Ext(path)
 			if ext == ".json" || ext == ".yaml" || ext == ".yml" {
-				// Check if it's in a messages, locales, or i18n directory
 				if strings.Contains(path, "messages") || strings.Contains(path, "locales") || strings.Contains(path, "i18n") {
 					files = append(files, path)
 				}
@@ -133,7 +121,6 @@ func (a *Analyzer) findTranslationFiles() ([]string, error) {
 	return files, err
 }
 
-// findSourceFiles finds all source files that might use translations
 func (a *Analyzer) findSourceFiles() ([]string, error) {
 	var files []string
 	
@@ -144,9 +131,7 @@ func (a *Analyzer) findSourceFiles() ([]string, error) {
 		
 		if !info.IsDir() {
 			ext := filepath.Ext(path)
-			// Include common source file extensions
 			if ext == ".js" || ext == ".jsx" || ext == ".ts" || ext == ".tsx" {
-				// Exclude node_modules and build directories
 				if !strings.Contains(path, "node_modules") && !strings.Contains(path, ".next") {
 					files = append(files, path)
 				}
@@ -158,7 +143,6 @@ func (a *Analyzer) findSourceFiles() ([]string, error) {
 	return files, err
 }
 
-// analyzeDeclaredTranslations analyzes translation files to find declared translations
 func (a *Analyzer) analyzeDeclaredTranslations(files []string) (map[string]Translation, error) {
 	parser := NewTranslationParser()
 	allDeclared := make(map[string]Translation)
@@ -170,7 +154,6 @@ func (a *Analyzer) analyzeDeclaredTranslations(files []string) (map[string]Trans
 			continue
 		}
 		
-		// Merge with existing translations
 		for key, translation := range declared {
 			allDeclared[key] = translation
 		}
@@ -179,7 +162,6 @@ func (a *Analyzer) analyzeDeclaredTranslations(files []string) (map[string]Trans
 	return allDeclared, nil
 }
 
-// analyzeUsedTranslations analyzes source files to find used translations
 func (a *Analyzer) analyzeUsedTranslations(files []string) (map[string]Translation, error) {
 	parser := NewTranslationParser()
 	allUsed := make(map[string]Translation)
@@ -191,7 +173,6 @@ func (a *Analyzer) analyzeUsedTranslations(files []string) (map[string]Translati
 			continue
 		}
 		
-		// Merge with existing translations
 		for key, translation := range used {
 			allUsed[key] = translation
 		}
@@ -200,7 +181,6 @@ func (a *Analyzer) analyzeUsedTranslations(files []string) (map[string]Translati
 	return allUsed, nil
 }
 
-// groupTranslationFilesByLocale groups translation files by their locale
 func (a *Analyzer) groupTranslationFilesByLocale(files []string) map[string][]string {
 	localeFiles := make(map[string][]string)
 	
@@ -214,20 +194,16 @@ func (a *Analyzer) groupTranslationFilesByLocale(files []string) map[string][]st
 	return localeFiles
 }
 
-// extractLocaleFromPath extracts the locale from a file path
 func (a *Analyzer) extractLocaleFromPath(filePath string) string {
-	// Extract locale from filename (e.g., en.json -> en, de.json -> de)
 	fileName := filepath.Base(filePath)
 	ext := filepath.Ext(fileName)
 	if ext == ".json" || ext == ".yaml" || ext == ".yml" {
 		locale := strings.TrimSuffix(fileName, ext)
-		// Validate locale format (2-3 character language code)
 		if len(locale) >= 2 && len(locale) <= 3 {
 			return locale
 		}
 	}
 	
-	// Try to extract from directory structure (e.g., messages/en.json)
 	dir := filepath.Dir(filePath)
 	dirName := filepath.Base(dir)
 	if len(dirName) >= 2 && len(dirName) <= 3 {
@@ -237,35 +213,29 @@ func (a *Analyzer) extractLocaleFromPath(filePath string) string {
 	return ""
 }
 
-// analyzeLocale analyzes translations for a specific locale
 func (a *Analyzer) analyzeLocale(locale string, files []string, usedTranslations map[string]Translation) (*LocaleAnalysisResult, error) {
-	// Analyze declared translations for this locale
 	declaredTranslations, err := a.analyzeDeclaredTranslations(files)
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing declared translations for locale %s: %w", locale, err)
 	}
 
-	// Add locale information to declared translations
 	for key, translation := range declaredTranslations {
 		translation.Locale = locale
 		declaredTranslations[key] = translation
 	}
 
-	// Create locale result
 	localeResult := &LocaleAnalysisResult{
 		Locale:                locale,
 		UnusedTranslations:    make([]Translation, 0),
 		UndeclaredTranslations: make([]Translation, 0),
 	}
 
-	// Find unused translations for this locale
 	for key, translation := range declaredTranslations {
 		if _, exists := usedTranslations[key]; !exists {
 			localeResult.UnusedTranslations = append(localeResult.UnusedTranslations, translation)
 		}
 	}
 
-	// Find undeclared translations for this locale
 	for key, translation := range usedTranslations {
 		if _, exists := declaredTranslations[key]; !exists {
 			translation.Locale = locale
@@ -280,7 +250,6 @@ func (a *Analyzer) analyzeLocale(locale string, files []string, usedTranslations
 	return localeResult, nil
 }
 
-// generateOverallResults aggregates results from all locales
 func (a *Analyzer) generateOverallResults() {
 	allUnused := make([]Translation, 0)
 	allUndeclared := make([]Translation, 0)

@@ -24,16 +24,13 @@ This command will:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectPath := args[0]
 		
-		// Create analyzer instance
 		analyzer := analyzer.NewAnalyzer(projectPath)
 		
-		// Perform analysis
 		results, err := analyzer.Analyze()
 		if err != nil {
 			return fmt.Errorf("analysis failed: %w", err)
 		}
 		
-		// Display results
 		displayResults(results)
 		
 		return nil
@@ -42,12 +39,10 @@ This command will:
 
 
 
-// displayResults prints the analysis results in a formatted way
 func displayResults(results *analyzer.AnalysisResult) {
 	fmt.Println("=== Next-intl Translation Analysis ===")
 	fmt.Println()
 	
-	// Overall Summary
 	fmt.Printf("📊 Overall Summary:\n")
 	fmt.Printf("   Total translations: %d\n", results.TotalTranslations)
 	fmt.Printf("   Used translations: %d\n", results.UsedTranslations)
@@ -56,7 +51,6 @@ func displayResults(results *analyzer.AnalysisResult) {
 	fmt.Printf("   Locales analyzed: %d\n", len(results.LocaleResults))
 	fmt.Println()
 	
-	// Per-locale results
 	if len(results.LocaleResults) > 0 {
 		fmt.Println("🌍 Per-locale Analysis:")
 		fmt.Println()
@@ -68,7 +62,6 @@ func displayResults(results *analyzer.AnalysisResult) {
 			fmt.Printf("      Unused translations: %d\n", len(localeResult.UnusedTranslations))
 			fmt.Printf("      Undeclared translations: %d\n", len(localeResult.UndeclaredTranslations))
 			
-			// Show unused translations for this locale
 			if len(localeResult.UnusedTranslations) > 0 {
 				fmt.Printf("      ❌ Unused in %s:\n", strings.ToUpper(locale))
 				for _, translation := range localeResult.UnusedTranslations {
@@ -76,7 +69,6 @@ func displayResults(results *analyzer.AnalysisResult) {
 				}
 			}
 			
-			// Show undeclared translations for this locale
 			if len(localeResult.UndeclaredTranslations) > 0 {
 				fmt.Printf("      ⚠️  Undeclared in %s:\n", strings.ToUpper(locale))
 				for _, translation := range localeResult.UndeclaredTranslations {
@@ -88,7 +80,6 @@ func displayResults(results *analyzer.AnalysisResult) {
 		}
 	}
 	
-	// Overall unused translations
 	if len(results.UnusedTranslations) > 0 {
 		fmt.Printf("❌ Overall unused translations (%d):\n", len(results.UnusedTranslations))
 		for _, translation := range results.UnusedTranslations {
@@ -100,7 +91,6 @@ func displayResults(results *analyzer.AnalysisResult) {
 		fmt.Println()
 	}
 	
-	// Overall undeclared translations
 	if len(results.UndeclaredTranslations) > 0 {
 		fmt.Printf("⚠️  Overall undeclared translations (%d):\n", len(results.UndeclaredTranslations))
 		for _, translation := range results.UndeclaredTranslations {
@@ -112,7 +102,6 @@ func displayResults(results *analyzer.AnalysisResult) {
 		fmt.Println()
 	}
 	
-	// Exit with error code if there are issues
 	if len(results.UnusedTranslations) > 0 || len(results.UndeclaredTranslations) > 0 {
 		os.Exit(1)
 	}
