@@ -119,44 +119,6 @@ go run main.go analyze /path/to/your/project --report --report-file my-report.md
 
 You can automate translation checking in your CI/CD pipeline using GitHub Actions. Here's an example workflow file (`.github/workflows/translation-checks.yml`):
 
-```yaml
-name: Next-intl Translation Check
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  check-translations:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-          
-      - name: Install next-intl-analyzer
-        run: |
-          git clone https://github.com/serjdrn/next-intl-analyzer.git
-          cd next-intl-analyzer
-          go build -o next-intl-analyzer
-          sudo mv next-intl-analyzer /usr/local/bin/
-          
-      - name: Run translation analysis
-        run: |
-          next-intl-analyzer analyze . --report
-          
-      - name: Upload translation report
-        uses: actions/upload-artifact@v3
-        with:
-          name: translation-report
-          path: reports/translations-report.md
-```
-
 This workflow runs on push and pull requests, checks your translations, and uploads the report as an artifact.
 
 The report includes:
