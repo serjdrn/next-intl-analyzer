@@ -110,7 +110,7 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 				}
 				
 				fullKey := key
-				if currentNamespace != "" && !strings.Contains(key, ".") {
+				if currentNamespace != "" {
 					fullKey = currentNamespace + "." + key
 				}
 				
@@ -120,6 +120,7 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 					Line:     lineNum,
 					Used:     true,
 					Declared: false,
+					Type:     "translation_call",
 				}
 			}
 		}
@@ -141,7 +142,7 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 					key := match[1]
 								if key != "" {
 				fullKey := key
-				if currentNamespace != "" && !strings.Contains(key, ".") {
+				if currentNamespace != "" {
 					fullKey = currentNamespace + "." + key
 				}
 				
@@ -151,6 +152,7 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 							Line:     lineNum,
 							Used:     true,
 							Declared: false,
+							Type:     "translation_call",
 						}
 					}
 				}
@@ -158,11 +160,11 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 		}
 		
 		hardcodedPatterns := []*regexp.Regexp{
-			// Text between JSX tags like <h1>text</h1>
+			// Text between JSX tags like <h1>text</h1> (but not translation calls)
 			regexp.MustCompile(`<[^>]+>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)</[^>]+>`),
-			// Text in JSX expressions like {text}
+			// Text in JSX expressions like {text} (but not translation calls)
 			regexp.MustCompile(`\{([^}]*[a-zA-Z][^}]*)\}`),
-			// Text in JSX attributes like title="text"
+			// Text in JSX attributes like title="text" (but not href, src, etc.)
 			regexp.MustCompile(`["']([^"']*[a-zA-Z][^"']*)["']`),
 			// Text after JSX tags like <button>text
 			regexp.MustCompile(`>([^<>{}\n]+[a-zA-Z][^<>{}\n]*)<`),
@@ -176,6 +178,69 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 					
 					// Skip if it's already a translation call or contains JSX
 					if strings.Contains(text, "t(") || strings.Contains(text, "<") || strings.Contains(text, ">") {
+						continue
+					}
+					
+					// Skip if this looks like a translation call pattern (contains quotes and parentheses)
+					if strings.Contains(text, "(") && strings.Contains(text, "'") {
+						continue
+					}
+					
+					// Skip if this looks like a translation key (contains dots and is short, or matches common key patterns)
+					if (strings.Contains(text, ".") && len(text) < 20) || 
+					   (len(text) < 20 && !strings.Contains(text, " ") && 
+					    (strings.Contains(text, "button") || strings.Contains(text, "navigation") || 
+					     strings.Contains(text, "title") || strings.Contains(text, "welcome") || 
+					     strings.Contains(text, "about") || strings.Contains(text, "description") ||
+					     strings.Contains(text, "undeclaredKey"))) {
+						continue
+					}
+					
+					// Skip imports and function names (including destructured imports)
+					if strings.Contains(text, "import") || strings.Contains(text, "export") || 
+					   strings.Contains(text, "function") || strings.Contains(text, "const") {
+						continue
+					}
+					
+					// Skip any destructured import pattern (e.g. { useState, useEffect, useTranslations })
+					if strings.HasPrefix(strings.TrimSpace(text), "{") && strings.HasSuffix(strings.TrimSpace(text), "}") {
+						continue
+					}
+					
+					// Skip any identifier that looks like a React hook or translation function
+					if strings.HasPrefix(text, "use") || strings.HasPrefix(text, "get") {
+						continue
+					}
+					
+					// Skip URLs and paths
+					if strings.HasPrefix(text, "/") || strings.Contains(text, "http") || 
+					   strings.Contains(text, "www.") || strings.Contains(text, ".com") {
+						continue
+					}
+					
+					// Skip technical patterns using the constants.go definitions
+					isTechnical := false
+					for _, pattern := range TechnicalPatterns {
+						if strings.Contains(text, pattern) {
+							isTechnical = true
+							break
+						}
+					}
+					if isTechnical {
+						continue
+					}
+					
+					// Skip comments
+					if strings.HasPrefix(text, "/*") || strings.HasPrefix(text, "//") || 
+					   strings.Contains(text, "*/") {
+						continue
+					}
+					
+					// Skip translation key patterns (common patterns that look like translation keys)
+					if (strings.Contains(text, "button.") || strings.Contains(text, "navigation.") || 
+						strings.Contains(text, "title") || strings.Contains(text, "welcome") || 
+						strings.Contains(text, "about") || strings.Contains(text, "description")) && 
+						len(text) < 30 && !strings.Contains(text, " ") {
 						continue
 					}
 					
@@ -215,6 +280,7 @@ func (p *TranslationParser) ParseSourceFile(filePath string) (map[string]Transla
 							Line:     lineNum,
 							Used:     true,
 							Declared: false,
+							Type:     "hardcoded_string",
 						}
 					}
 				}

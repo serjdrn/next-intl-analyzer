@@ -26,11 +26,49 @@ This command will:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectPath := args[0]
 		
+		// Show progress indicator
+		quiet, _ := cmd.Flags().GetBool("quiet")
+		if !quiet {
+			fmt.Println("🔍 Analyzing project...")
+			fmt.Println("  ↳ Scanning files...")
+		}
+		
 		analyzer := analyzer.NewAnalyzer(projectPath)
+		
+		// Add progress callback with spinner
+		spinChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		spinIdx := 0
+		lastStage := ""
+		
+		analyzer.SetProgressCallback(func(stage string, progress int, total int) {
+			if !quiet {
+				if stage != lastStage {
+					if lastStage != "" {
+						fmt.Println()
+					}
+					lastStage = stage
+				}
+				
+				spinChar := spinChars[spinIdx%len(spinChars)]
+				spinIdx++
+				
+				if total > 0 {
+					percent := int((float64(progress) / float64(total)) * 100)
+					fmt.Printf("\r  %s %s... %d/%d (%d%%)   ", spinChar, stage, progress, total, percent)
+				} else {
+					fmt.Printf("\r  %s %s...   ", spinChar, stage)
+				}
+			}
+		})
 		
 		results, err := analyzer.Analyze()
 		if err != nil {
 			return fmt.Errorf("analysis failed: %w", err)
+		}
+		
+		if !quiet {
+			fmt.Println("\r  ↳ Analysis complete!                      ")
+			fmt.Println()
 		}
 		
 		// Generate markdown report if flag is set (do this before display to avoid os.Exit)
@@ -43,7 +81,6 @@ This command will:
 		}
 		
 		// Display results unless quiet mode is enabled
-		quiet, _ := cmd.Flags().GetBool("quiet")
 		if !quiet {
 			displayResults(results)
 		}
@@ -69,6 +106,7 @@ func displayResults(results *analyzer.AnalysisResult) {
 	fmt.Printf("   Used translations: %d\n", results.UsedTranslations)
 	fmt.Printf("   Unused translations: %d\n", len(results.UnusedTranslations))
 	fmt.Printf("   Undeclared translations: %d\n", len(results.UndeclaredTranslations))
+	fmt.Printf("   Hardcoded strings: %d\n", len(results.HardcodedStrings))
 	fmt.Printf("   Locales analyzed: %d\n", len(results.LocaleResults))
 	fmt.Println()
 	
@@ -97,6 +135,8 @@ func displayResults(results *analyzer.AnalysisResult) {
 				}
 			}
 			
+			// Removed per-locale hardcoded strings section as they are now handled globally
+			
 			fmt.Println()
 		}
 	}
@@ -123,7 +163,18 @@ func displayResults(results *analyzer.AnalysisResult) {
 		fmt.Println()
 	}
 	
-	if len(results.UnusedTranslations) > 0 || len(results.UndeclaredTranslations) > 0 {
+	if len(results.HardcodedStrings) > 0 {
+		fmt.Printf("🔤 Hardcoded strings (%d):\n", len(results.HardcodedStrings))
+		for _, translation := range results.HardcodedStrings {
+			fmt.Printf("   - %s (used in %s:%d)\n", translation.Key, translation.File, translation.Line)
+		}
+		fmt.Println()
+	} else {
+		fmt.Println("✅ No hardcoded strings found!")
+		fmt.Println()
+	}
+	
+	if len(results.UnusedTranslations) > 0 || len(results.UndeclaredTranslations) > 0 || len(results.HardcodedStrings) > 0 {
 		os.Exit(1)
 	}
 }
@@ -152,11 +203,12 @@ func generateMarkdownReport(results *analyzer.AnalysisResult, projectPath string
 | Used Translations | %d |
 | Unused Translations | %d |
 | Undeclared Translations | %d |
+| Hardcoded Strings | %d |
 | Locales Analyzed | %d |
 
 ## 🌍 Per-locale Analysis
 
-`, time.Now().Format("2006-01-02 15:04:05"), projectPath, results.TotalTranslations, results.UsedTranslations, len(results.UnusedTranslations), len(results.UndeclaredTranslations), len(results.LocaleResults))
+`, time.Now().Format("2006-01-02 15:04:05"), projectPath, results.TotalTranslations, results.UsedTranslations, len(results.UnusedTranslations), len(results.UndeclaredTranslations), len(results.HardcodedStrings), len(results.LocaleResults))
 
 	// Add per-locale results
 	for locale, localeResult := range results.LocaleResults {
@@ -189,6 +241,8 @@ func generateMarkdownReport(results *analyzer.AnalysisResult, projectPath string
 			}
 			content += "\n"
 		}
+		
+		// Removed per-locale hardcoded strings section as they are now handled globally
 	}
 
 	// Add overall unused translations
@@ -216,6 +270,19 @@ func generateMarkdownReport(results *analyzer.AnalysisResult, projectPath string
 	} else {
 		content += "## ✅ No Undeclared Translations Found\n\n"
 	}
+	
+	// Add overall hardcoded strings
+	if len(results.HardcodedStrings) > 0 {
+		content += "## 🔤 Hardcoded Strings\n\n"
+		content += "| Text | File | Line |\n"
+		content += "|------|------|------|\n"
+		for _, translation := range results.HardcodedStrings {
+			content += fmt.Sprintf("| `%s` | `%s` | %d |\n", translation.Key, translation.File, translation.Line)
+		}
+		content += "\n"
+	} else {
+		content += "## ✅ No Hardcoded Strings Found\n\n"
+	}
 
 	// Add recommendations
 	content += `## 💡 Recommendations
@@ -230,10 +297,16 @@ func generateMarkdownReport(results *analyzer.AnalysisResult, projectPath string
 - Ensure all user-facing text is properly internationalized
 - Consider using translation keys instead of hardcoded strings
 
+### For Hardcoded Strings:
+- Replace hardcoded strings with translation keys
+- Create appropriate entries in your translation files
+- Use the t() function or appropriate hooks to translate these strings
+
 ### Best Practices:
 - Regularly run this analysis to maintain clean translation files
 - Use consistent naming conventions for translation keys
 - Consider implementing automated checks in your CI/CD pipeline
+- Avoid hardcoding user-facing text directly in components
 
 ---
 

@@ -8,6 +8,7 @@ A command-line tool to analyze next-intl translations in Next.js projects. This 
 
 - 🔍 **Find unused translations**: Identify translation keys that are declared but never used in your code
 - ⚠️ **Find undeclared translations**: Detect translation keys that are used in code but not declared in translation files
+- 🔤 **Detect hardcoded strings**: Find user-facing text that should be translated
 - 📊 **Comprehensive reporting**: Get detailed reports with file locations and line numbers
 - 🚀 **Fast analysis**: Efficient scanning of your entire project
 - 🎯 **Next.js optimized**: Specifically designed for Next.js projects using next-intl
@@ -113,10 +114,11 @@ go run main.go analyze /path/to/your/project --report --report-file my-report.md
 ```
 
 The report includes:
-- 📊 **Summary statistics** with counts of total, used, unused, and undeclared translations
+- 📊 **Summary statistics** with counts of total, used, unused, undeclared translations, and hardcoded strings
 - 🌍 **Per-locale analysis** showing results for each language
 - ❌ **Unused translations** with file locations
 - ⚠️ **Undeclared translations** with file locations and line numbers
+- 🔤 **Hardcoded strings** with file locations and line numbers
 - 💡 **Recommendations** for maintaining clean translation files
 
 See [sample-report.md](sample-report.md) for an example of the generated report format.
@@ -140,15 +142,17 @@ The CLI tool performs the following analysis:
 3. **Compares and reports**: 
    - Identifies unused translations (declared but not used)
    - Finds undeclared translations (used but not declared)
-   - Provides detailed reports with file locations
+   - Detects hardcoded strings (user-facing text that should be translated)
+   - Provides detailed reports with file locations and line numbers
 
 ## Output
 
 The tool provides a comprehensive report including:
 
-- 📊 **Summary statistics**: Total, used, unused, and undeclared translation counts
+- 📊 **Summary statistics**: Total, used, unused, undeclared translations, and hardcoded string counts
 - ❌ **Unused translations**: List of translation keys that are declared but never used
 - ⚠️ **Undeclared translations**: List of translation keys used in code but not declared
+- 🔤 **Hardcoded strings**: List of user-facing text that should be translated
 - 📁 **File locations**: Exact file paths and line numbers for each issue
 
 ### Example output
@@ -156,11 +160,22 @@ The tool provides a comprehensive report including:
 ```
 === Next-intl Translation Analysis ===
 
-📊 Summary:
+📊 Overall Summary:
    Total translations: 28
    Used translations: 12
    Unused translations: 16
    Undeclared translations: 1
+   Hardcoded strings: 2
+   Locales analyzed: 2
+
+🌍 Per-locale Analysis:
+
+   📍 EN:
+      Total translations: 28
+      Used translations: 12
+      Unused translations: 16
+      Undeclared translations: 1
+      Hardcoded strings: 2
 
 ❌ Unused translations (16):
    - Common.button.delete (in messages/en.json)
@@ -175,13 +190,15 @@ The tool provides a comprehensive report including:
 ⚠️  Undeclared translations (1):
    - About.undeclaredKey (used in src/components/ServerComponent.tsx:11)
 
-✅ No undeclared translations found!
+🔤 Hardcoded strings (2):
+   - Welcome to our application (used in src/components/UntranslatedComponent.tsx:13)
+   - About Us (used in src/components/UntranslatedComponent.tsx:20)
 ```
 
 ## Exit codes
 
 - `0`: Analysis completed successfully with no issues found
-- `1`: Analysis completed but found unused or undeclared translations
+- `1`: Analysis completed but found unused translations, undeclared translations, or hardcoded strings
 - `2`: Error occurred during analysis
 
 ## Supported file types
@@ -238,10 +255,12 @@ next-intl-analyzer/
 ├── pkg/
 │   └── analyzer/
 │       ├── analyzer.go      # Core analysis logic
-│       └── parser.go        # Translation file and source code parsing
+│       ├── parser.go        # Translation file and source code parsing
+│       └── constants.go     # Constants for text analysis
 ├── test-data/               # Test files for development
+├── reports/                 # Generated reports directory
 ├── go.mod                   # Go module file
-└── README.md               # This file
+└── README.md                # This file
 ```
 
 ### Building
