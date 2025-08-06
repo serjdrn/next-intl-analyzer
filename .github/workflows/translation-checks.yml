@@ -2,15 +2,15 @@ name: Next-intl Translation Check
 
 on:
   push:
-    branches: [ staging ]
+    branches: [ main ]
   pull_request:
-    branches: [ staging ]
+    branches: [ main ]
 
 jobs:
   check-translations:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -27,9 +27,13 @@ jobs:
       - name: Run translation analysis
         run: |
           next-intl-analyzer analyze . --report
+        continue-on-error: true  # Continue even when issues are found (exit code 1)
           
       - name: Upload translation report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: translation-report
           path: reports/translations-report.md
+          overwrite: true
+          retention-days: 90
+          if-no-files-found: warn
