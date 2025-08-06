@@ -82,7 +82,44 @@ go run main.go analyze ../my-nextjs-app
 
 # Test with the included test data
 go run main.go analyze test-data
+
+# Generate a markdown report
+go run main.go analyze test-data --report
+
+# Generate a markdown report with custom filename
+go run main.go analyze test-data --report --report-file my-analysis-report.md
+
+# Generate a report without console output
+go run main.go analyze test-data --report --quiet
+
+## CLI Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--report` | Generate a markdown report file | `false` |
+| `--report-file` | Custom filename for the markdown report | `next-intl-analysis-report.md` |
+| `--quiet` | Suppress console output (useful when generating reports) | `false` |
+
+## Report Generation
+
+The tool can generate a detailed markdown report of the analysis results:
+
+```bash
+# Generate a report with default filename
+go run main.go analyze /path/to/your/project --report
+
+# Generate a report with custom filename
+go run main.go analyze /path/to/your/project --report --report-file my-report.md
 ```
+
+The report includes:
+- 📊 **Summary statistics** with counts of total, used, unused, and undeclared translations
+- 🌍 **Per-locale analysis** showing results for each language
+- ❌ **Unused translations** with file locations
+- ⚠️ **Undeclared translations** with file locations and line numbers
+- 💡 **Recommendations** for maintaining clean translation files
+
+See [sample-report.md](sample-report.md) for an example of the generated report format.
 
 ## How it works
 

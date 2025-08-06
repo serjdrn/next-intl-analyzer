@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+# Reports folder and contents 
+reports/
+reports/*
+
 # Test binary, built with `go test -c`
 *.test
 
